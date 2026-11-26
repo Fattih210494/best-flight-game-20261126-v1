@@ -1,5 +1,5 @@
 // Flight World v1 — Senja Runway. Desert airport, vintage biplane (GLB),
-// taxi -> takeoff -> 3 rings -> land -> earn money + XP. Chase + cockpit
+// taxi -> takeoff -> 3 rings -> land -> earn money + XP. Chase view only.
 // cameras, full Flight World UI (Hangar / Shop / Jobs / Missions, Engine /
 // Reverse Thrust / Brake, virtual joystick, Flaps / Spoilers, money + XP),
 // WebAudio synth sounds, keyboard + mouse, static files, no network.
@@ -114,27 +114,8 @@ const guide = new THREE.Group();
   scene.add(guide);
 }
 
-// Cockpit dressing (nose + dash + A-pillars) rides with the camera,
-// visible only in cockpit mode. Sized for the biplane's open cockpit.
-const cockpit = new THREE.Group();
-{
-  const noseMat = new THREE.MeshBasicMaterial({ color: 0x17122b });
-  const noseCone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.0, 12), noseMat);
-  noseCone.rotation.x = -Math.PI / 2 - 0.15;
-  noseCone.position.set(0, -1.15, -1.5);
-  cockpit.add(noseCone);
-  const dash = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.24, 0.4), new THREE.MeshBasicMaterial({ color: 0x17122b }));
-  dash.position.set(0, -1.3, -1.0);
-  cockpit.add(dash);
-  for (const sx of [-1, 1]) {
-    const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.4, 0.05), new THREE.MeshBasicMaterial({ color: 0x17122b }));
-    pillar.position.set(sx * 0.85, 0.1, -1.2);
-    pillar.rotation.z = -sx * 0.14;
-    cockpit.add(pillar);
-  }
-  cockpit.visible = false;
-  camera.add(cockpit);
-}
+// Chase view only: the whole biplane stays in frame during play
+// (no cockpit mode — the user wants the full plane visible at all times).
 
 // --- HUD -------------------------------------------------------------------
 const msgEl = $('toast');
@@ -332,8 +313,7 @@ function missionsHtml() {
 function settingsHtml() {
   return `<div class="card"><h3>Sound</h3><p>Engine, wind and alerts are synthesised in your browser.</p>
     <button class="btn" data-act="sound">${econ.muted ? 'Unmute sound' : 'Mute sound'}</button></div>
-  <div class="card"><h3>Camera</h3><p>Chase is the default view. Press C any time to switch to the cockpit.</p>
-    <button class="btn" data-act="camera">Switch camera (C)</button></div>
+  <div class="card"><h3>Camera</h3><p>Chase view from behind-above — the whole biplane stays in frame.</p></div>
   <div class="card"><h3>Progress</h3><p>Money, XP, paints and jobs are saved on this device.</p>
     <button class="btn" data-act="reset">Reset all progress</button></div>`;
 }
@@ -387,8 +367,6 @@ $('panel-body').addEventListener('click', (e) => {
     audio.setMuted(econ.muted);
     saveEcon();
     openPanel('Settings');
-  } else if (act === 'camera') {
-    toggleCamera();
   } else if (act === 'reset') {
     if (!btn.dataset.confirm) {
       btn.dataset.confirm = '1';
@@ -439,13 +417,6 @@ function cycleSpoilers() {
   audio.click();
   updateHUD();
 }
-function toggleCamera() {
-  game.camMode = game.camMode === 'chase' ? 'cockpit' : 'chase';
-  cockpit.visible = game.camMode === 'cockpit';
-  toast(game.camMode === 'cockpit' ? 'Cockpit view' : 'Chase view');
-  audio.click();
-}
-
 // --- Flow: title / flight / end --------------------------------------------
 function showTitle() {
   game.state = 'title';
@@ -568,17 +539,6 @@ function updateCamera(dt) {
     camera.lookAt(camTarget);
     return;
   }
-  if (game.camMode === 'cockpit') {
-    // Open cockpit: eye just above the fuselage, looking over the nose.
-    const eye = flight.pos.clone().addScaledVector(fwd, 2.5);
-    eye.y += 1.6;
-    const look = flight.pos.clone().addScaledVector(fwd, 50);
-    look.y += 0.2 - flight.pitch * 0.4;
-    if (camera.position.distanceTo(eye) > 5) camera.position.copy(eye);
-    else camera.position.lerp(eye, 1 - Math.pow(0.0001, dt));
-    camera.lookAt(look);
-    return;
-  }
   // Chase: directly behind-above, the whole biplane + both wings in frame.
   const target = flight.pos.clone().addScaledVector(fwd, -13);
   target.y += 5.5;
@@ -591,7 +551,7 @@ function updateCamera(dt) {
 
 // --- Shot API (for ?shot= states) -------------------------------------------
 const shotApi = {
-  setCam(mode) { game.camMode = mode; cockpit.visible = mode === 'cockpit'; },
+  setCam(mode) { game.camMode = 'chase'; }, // chase only — full plane always in frame
   flyAt(x, y, z, heading, speed, throttle, ringsPassed) {
     game.state = 'flying';
     document.body.classList.add('flying');
@@ -642,7 +602,6 @@ function animate() {
   if (input.takePressed('spoilers') && game.state === 'flying') cycleSpoilers();
   if (input.takePressed('reverse') && game.state === 'flying') { flight.reverse = !flight.reverse; updateHUD(); }
   if (input.takePressed('gear') && game.state === 'flying') { flight.gearDown = !flight.gearDown; toast(flight.gearDown ? 'Gear down' : 'Gear up (fixed on the B-1 — stays down)'); flight.gearDown = true; updateHUD(); }
-  if (input.takePressed('camera')) toggleCamera();
   if (input.takePressed('start') && game.state === 'title') startFlight();
   if (input.takePressed('close') && game.panelOpen) closePanel();
 

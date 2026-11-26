@@ -12,7 +12,7 @@ export function createInput(canvas) {
     KeyD: 'rollRight', ArrowRight: 'rollRight',
     Space: 'brake',
     KeyF: 'flaps', KeyG: 'spoilers', KeyR: 'reverse', KeyL: 'gear',
-    KeyE: 'engine', KeyC: 'camera', Enter: 'start', Escape: 'close',
+    KeyE: 'engine', Enter: 'start', Escape: 'close',
   };
 
   function onKeyDown(e) {

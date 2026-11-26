@@ -14,9 +14,9 @@ export function applyShot(api, name) {
     return 'flying';
   }
   if (name === 'play') {
-    // Cockpit view on the way to ring 2: the ring ahead, the desert below,
-    // the minimap and the systems chips lit.
-    api.setCam('cockpit');
+    // Chase view on the way to ring 2: the FULL biplane in frame, the ring
+    // ahead, the desert below, the minimap and the systems chips lit.
+    api.setCam('chase');
     api.flyAt(200, 170, -1000, -50, 55, 0.65, [true, false, false]);
     return 'flying';
   }
