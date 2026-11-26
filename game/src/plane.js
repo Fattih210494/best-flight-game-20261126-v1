@@ -1,6 +1,7 @@
 // Flight World v1 aircraft: the user's vintage BIPLANE (GLB supplied by
 // him, desert-camo, two stacked wings, radial propeller engine, fixed gear,
-// open cockpits). Loaded with GLTFLoader r160; the propeller blades are
+// open cockpits). Loaded with the entry's own minimal GLB loader
+// (game/src/glb-loader.js, written for this model); the propeller blades are
 // found geometrically (no prop/blade node names exist in the file), pivoted
 // at their union-bbox centre, and spun in code. The model is scaled from
 // its measured bounding box (longest side -> 9 units) and centred so the
@@ -11,7 +12,7 @@
 // and ground steering. (Flaps / spoilers / gear stay flight-model values in
 // the UI; the fixed-gear biplane does not animate them.)
 import * as THREE from 'three';
-import { GLTFLoader } from '../vendor/loaders/GLTFLoader.js';
+import { loadGLB } from './glb-loader.js';
 import { clamp, degToRad } from './noise.js';
 import { heightAt, isOverRunway, RUNWAY, RUNWAY_Y, RINGS, RING_RADIUS, SPAWN } from './world.js';
 
@@ -24,8 +25,9 @@ const TARGET_LONGEST = 9;       // scale the model so its longest side is 9 unit
 
 // Find the propeller blades: thin, long meshes at the nose, near the radial
 // engine's axis. The file has no prop/blade node names, so this is geometric.
-// Note: GLTFLoader replaces spaces in node names with underscores, so
-// 'Radial Engine 9' arrives as 'Radial_Engine_9'.
+// Note: node names arrive exactly as written in the file ('Radial Engine 9').
+// The regex below accepts a space or an underscore, so it also matches the
+// underscored form other loaders produce.
 function findPropBlades(gltfScene) {
   let engineObj = null;
   gltfScene.traverse((o) => { if (/^Radial[ _]Engine[ _]9$/.test(o.name)) engineObj = o; });
@@ -50,8 +52,7 @@ function findPropBlades(gltfScene) {
 }
 
 export async function loadBiplane() {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync('models/airplane.glb');
+  const gltf = await loadGLB('models/airplane.glb');
   const scene = gltf.scene;
 
   // --- Propeller: pivot the blades at their union-bbox centre and spin
