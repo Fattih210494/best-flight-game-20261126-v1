@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight World — Senja Runway</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #7fb8e8;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1c2333; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .flight-ui { position: fixed; z-index: 6; }
+  body:not(.flying) .flight-ui { display: none !important; }
+  button { font-family: inherit; cursor: pointer; border: none; }
+  .btn { background: rgba(255,255,255,0.92); color: #1c2333; border-radius: 10px;
+    padding: 9px 14px; font-size: 14px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+  .btn:hover { background: #fff; }
+  .btn.on { background: #e8641f; color: #fff; }
+  .btn.accent { background: #e8641f; color: #fff; }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+
+  /* Top bar: menu left, progress centre, money right. Always visible
+     (it is the menu, not a flight-only control) — it does NOT get the
+     .flight-ui class, which is hidden on the title screen. */
+  #topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 6; display: flex; align-items: flex-start;
+    justify-content: space-between; padding: 10px 12px; gap: 10px; pointer-events: none; }
+  #topbar .btn { pointer-events: auto; }
+  #menu { display: flex; gap: 8px; flex-wrap: wrap; }
+  #progress-wrap { flex: 1; max-width: 460px; text-align: center; pointer-events: auto; }
+  #progress-label { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5); margin-bottom: 4px; }
+  #progress-bar { height: 10px; border-radius: 6px; background: rgba(255,255,255,0.55);
+    overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  #progress-fill { height: 100%; width: 0%; background: #e8641f; transition: width 0.3s; }
+  #progress-stages { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700;
+    color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); margin-top: 3px; }
+  #money-box { display: flex; gap: 8px; align-items: center; pointer-events: auto; }
+  #money { background: rgba(255,255,255,0.92); border-radius: 10px; padding: 9px 14px;
+    font-weight: 800; font-size: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+  #xp { background: rgba(255,255,255,0.92); border-radius: 10px; padding: 9px 12px;
+    font-weight: 700; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+
+  /* Instruments row under the top bar. */
+  #instruments { top: 64px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+  .inst { background: rgba(20,24,40,0.78); color: #fff; border-radius: 10px; padding: 7px 12px;
+    text-align: center; min-width: 74px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  .inst .lbl { font-size: 10px; letter-spacing: 1px; opacity: 0.75; }
+  .inst .val { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .inst .unit { font-size: 10px; opacity: 0.75; }
+  .chip { background: rgba(20,24,40,0.78); color: #ffd27a; border-radius: 10px; padding: 7px 12px;
+    text-align: center; min-width: 74px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  .chip .lbl { font-size: 10px; letter-spacing: 1px; opacity: 0.75; }
+  .chip .val { font-size: 16px; font-weight: 800; }
+  #status { top: 122px; left: 50%; transform: translateX(-50%); color: #fff; font-weight: 800;
+    font-size: 15px; text-shadow: 0 1px 4px rgba(0,0,0,0.6); text-align: center; white-space: nowrap; }
+  #target { top: 148px; left: 50%; transform: translateX(-50%); color: #ffe9a8; font-weight: 700;
+    font-size: 13px; text-shadow: 0 1px 4px rgba(0,0,0,0.6); text-align: center; white-space: nowrap; }
+
+  #stall { top: 190px; left: 50%; transform: translateX(-50%); background: #d43a24; color: #fff;
+    font-weight: 800; padding: 8px 18px; border-radius: 10px; display: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+  #toast { top: 190px; left: 50%; transform: translateX(-50%); background: rgba(20,24,40,0.85);
+    color: #fff; font-weight: 700; padding: 8px 18px; border-radius: 10px; opacity: 0;
+    transition: opacity 0.3s; white-space: nowrap; pointer-events: none; }
+
+  /* Right-side engine controls. */
+  #engine-box { right: 12px; top: 180px; display: flex; flex-direction: column; gap: 10px; }
+  #engine-box .btn { width: 150px; text-align: center; }
+  #btn-engine { background: #2a9d4a; color: #fff; }
+  #btn-engine.on { background: #d43a24; }
+  #btn-reverse.on { background: #e8641f; color: #fff; }
+
+  /* Bottom bar: Exit + flaps + spoilers. */
+  #bottombar { bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+  #bottombar .btn { min-width: 110px; }
+  .sys-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .sys-btn small { font-size: 11px; opacity: 0.8; font-weight: 600; }
+
+  /* Virtual joystick, bottom-left. */
+  #joystick { left: 16px; bottom: 16px; width: 132px; height: 132px; border-radius: 50%;
+    background: rgba(255,255,255,0.18); border: 2px solid rgba(255,255,255,0.55);
+    touch-action: none; }
+  #joy-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(255,255,255,0.85); box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transform: translate(-50%, -50%); pointer-events: none; }
+  #joy-label { left: 16px; bottom: 154px; color: #fff; font-size: 11px; font-weight: 800;
+    letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+
+  /* Minimap, bottom-right. */
+  #minimap { right: 12px; bottom: 12px; width: 150px; height: 150px; border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.7); box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+    background: #b0703f; }
+
+  /* Overlays (title / end). pointer-events none so the topbar menu stays
+     clickable; only the overlay's own buttons take pointer events. */
+  .overlay { position: fixed; inset: 0; z-index: 10; display: none; align-items: center;
+    justify-content: center; flex-direction: column; text-align: center; padding: 20px;
+    background: linear-gradient(rgba(20,40,70,0.45), rgba(20,40,70,0.65)); pointer-events: none; }
+  .overlay.open { display: flex; }
+  .overlay h1 { color: #fff; font-size: 46px; letter-spacing: 2px; text-shadow: 0 3px 12px rgba(0,0,0,0.6); }
+  .overlay h2 { color: #ffd27a; font-size: 20px; margin: 8px 0 12px; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+  .overlay p { color: #fff; font-size: 15px; max-width: 560px; line-height: 1.5;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+  .overlay .keys { color: #e8eef5; font-size: 13px; margin: 14px 0; line-height: 1.7; }
+  .overlay .keys b { color: #ffd27a; }
+  .bigbtn { pointer-events: auto; background: #e8641f; color: #fff; font-size: 20px; font-weight: 800;
+    padding: 14px 44px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); margin-top: 10px; }
+  .bigbtn:hover { background: #f57a33; }
+  .ghostbtn { pointer-events: auto; background: rgba(255,255,255,0.9); color: #1c2333; font-size: 15px;
+    font-weight: 700; padding: 10px 26px; border-radius: 10px; margin-top: 12px; }
+  #end-breakdown { color: #fff; font-size: 15px; line-height: 1.9; margin: 10px 0;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+  #end-breakdown .total { font-size: 22px; font-weight: 800; color: #ffd27a; }
+
+  /* Panel modal. */
+  #panel { position: fixed; inset: 0; z-index: 12; display: none; align-items: center;
+    justify-content: center; background: rgba(10,16,30,0.55); }
+  #panel.open { display: flex; }
+  #panel-card { background: #fff; border-radius: 16px; width: min(560px, 92vw); max-height: 82vh;
+    overflow-y: auto; padding: 20px 22px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+  #panel-card h2 { font-size: 22px; margin-bottom: 4px; }
+  #panel-card .muted { color: #667; font-size: 13px; margin-bottom: 12px; }
+  #panel-card .card { border: 1px solid #dde2ea; border-radius: 12px; padding: 12px 14px; margin: 10px 0; }
+  #panel-card .card h3 { font-size: 16px; }
+  #panel-card .card p { font-size: 13px; color: #445; margin: 4px 0 8px; line-height: 1.5; }
+  #panel-card .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  #panel-card .price { font-weight: 800; color: #1a7a2e; }
+  #panel-close { float: right; background: #eef1f5; border-radius: 8px; padding: 6px 12px;
+    font-weight: 800; }
+  #flash { position: fixed; inset: 0; z-index: 8; background: rgba(255,40,20,0.35);
+    opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+  #ring-pop { position: fixed; left: 50%; top: 34%; transform: translate(-50%, -50%) scale(0.6);
+    z-index: 9; font-size: 64px; font-weight: 900; color: #ffd23e;
+    text-shadow: 0 3px 16px rgba(0,0,0,0.6), 0 0 30px rgba(255,210,62,0.7);
+    opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; }
+  #ring-pop.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #loading { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+    justify-content: center; font-size: 24px; font-weight: 800; letter-spacing: 2px;
+    color: #fff; background: linear-gradient(#7fb8e8, #3a6a8a); text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Flight World: taxi, take off, fly three rings and land on runway 36"></canvas>
+<div id="flash"></div>
+<div id="ring-pop">+100</div>
+<div id="loading">✈ Loading aircraft…</div>
+
+<!-- Top bar (always visible: the menu works from the title screen too) -->
+<div id="topbar">
+  <div id="menu">
+    <button class="btn" id="btn-hangar">🏠 Hangar</button>
+    <button class="btn" id="btn-shop">🎨 Shop</button>
+    <button class="btn" id="btn-jobs">💼 Jobs</button>
+    <button class="btn" id="btn-missions">🎯 Missions</button>
+  </div>
+  <div id="progress-wrap">
+    <div id="progress-label">TAXI</div>
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <div id="progress-stages"><span>TAXI</span><span>TAKEOFF</span><span>RING 1</span><span>RING 2</span><span>RING 3</span><span>LAND</span></div>
+  </div>
+  <div id="money-box">
+    <span id="money">$1,000</span>
+    <span id="xp">0 XP</span>
+    <button class="btn" id="btn-settings">⚙️</button>
+  </div>
+</div>
+
+<!-- Instruments -->
+<div id="instruments" class="flight-ui">
+  <div class="inst"><div class="lbl">ALTITUDE</div><div class="val"><span id="alt">0</span> <span class="unit">m</span></div></div>
+  <div class="inst"><div class="lbl">SPEED</div><div class="val"><span id="spd">0</span> <span class="unit">kt</span></div></div>
+  <div class="inst"><div class="lbl">HEADING</div><div class="val"><span id="hdg">180</span>°</div></div>
+  <div class="inst"><div class="lbl">VERT SPEED</div><div class="val"><span id="vs">0.0</span> <span class="unit">m/s</span></div></div>
+  <div class="chip" id="chip-flaps"><div class="lbl">FLAPS</div><div class="val" id="flaps-val">0</div></div>
+  <div class="chip" id="chip-spoilers"><div class="lbl">SPOILERS</div><div class="val" id="spoilers-val">0</div></div>
+</div>
+<div id="status" class="flight-ui">Engine off — press E or tap Engine</div>
+<div id="target" class="flight-ui"></div>
+<div id="stall" class="flight-ui">⚠ STALL — LOWER NOSE, ADD POWER</div>
+<div id="toast" class="flight-ui"></div>
+
+<!-- Right-side engine controls -->
+<div id="engine-box" class="flight-ui">
+  <button class="btn" id="btn-engine">▶ Engine</button>
+  <button class="btn" id="btn-reverse">↩ Reverse Thrust</button>
+  <button class="btn" id="btn-brake">■ Brake</button>
+</div>
+
+<!-- Bottom bar -->
+<div id="bottombar" class="flight-ui">
+  <button class="btn" id="btn-exit">✕ Exit</button>
+  <button class="btn sys-btn" id="btn-flaps">FLAPS<small id="flaps-btn-val">0 / 3</small></button>
+  <button class="btn sys-btn" id="btn-spoilers">SPOILERS<small id="spoilers-btn-val">0 / 2</small></button>
+</div>
+
+<!-- Joystick + minimap -->
+<div id="joystick" class="flight-ui"><div id="joy-knob"></div></div>
+<div id="joy-label" class="flight-ui">DRAG TO FLY</div>
+<canvas id="minimap" class="flight-ui" width="150" height="150"></canvas>
+
+<!-- Title overlay -->
+<div id="title" class="overlay open">
+  <h1>✈ FLIGHT WORLD</h1>
+  <h2>Senja Runway — Desert Airport</h2>
+  <p>Start the engine, taxi to the runway, take off in the Senja Air B-1 biplane,
+     fly through <b>3 glowing rings</b> over the desert, then bring her home —
+     a smooth landing on runway 36 earns money and XP.</p>
+  <div class="keys">
+    <b>W / S</b> throttle &nbsp;·&nbsp; <b>↑ / ↓</b> elevator &nbsp;·&nbsp; <b>A / D</b> steer &amp; bank<br>
+    <b>E</b> engine &nbsp;·&nbsp; <b>F</b> flaps &nbsp;·&nbsp; <b>G</b> spoilers &nbsp;·&nbsp; <b>R</b> reverse thrust<br>
+    <b>Space</b> brake &nbsp;·&nbsp; <b>C</b> camera &nbsp;·&nbsp; drag the joystick to fly with the mouse
+  </div>
+  <button class="bigbtn" id="btn-fly">▶ FLY</button>
+</div>
+
+<!-- End overlay -->
+<div id="end" class="overlay">
+  <h1 id="end-title">LANDED! ✓</h1>
+  <h2 id="end-sub"></h2>
+  <div id="end-breakdown"></div>
+  <button class="bigbtn" id="btn-again">↻ Fly Again</button>
+  <button class="ghostbtn" id="btn-end-hangar">🏠 Hangar</button>
+</div>
+
+<!-- Panel modal -->
+<div id="panel">
+  <div id="panel-card">
+    <button id="panel-close">✕ Close</button>
+    <h2 id="panel-title">Hangar</h2>
+    <div id="panel-body"></div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
